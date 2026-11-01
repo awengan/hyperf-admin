@@ -847,7 +847,7 @@ BASE=http://127.0.0.1:9502 node run.mjs              # 换实例
 composer/hyperf-admin/
 ├── config/hyperf-admin.php       # 默认配置（发布到宿主可覆盖）
 ├── database/admin.sql            # 建表 + 种子数据
-├── database/migrations/          # 等价迁移（--migrate 用）
+├── database/migrations/          # 迁移（admin:install 默认执行）
 ├── docs/
 │   ├── naive-ui-rewrite.md       # 重写说明：字段映射、行为差异
 │   └── install-from-zero.md      # 从 0 安装的实测记录
