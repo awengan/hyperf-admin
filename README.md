@@ -247,7 +247,61 @@ php bin/hyperf.php admin:install --gzip
 
 - 源码保持可读，只多出同名 `.gz`；浏览器带 `Accept-Encoding: gzip` 时自动拿压缩版
 - 重启不会丢；**资源内容变了会自动失效重建**
-- 生产环境更推荐交给 nginx / 网关做压缩，这一项就当「没有网关时的兜底」
+- **不是必须的**：Swoole 自己就会压（见下一节），这一项只是把压缩提前到安装时做，
+  省掉每次请求的实时压缩 CPU
+
+---
+
+## 静态资源：要不要配？默认不用
+
+`public/static` 那套东西（版本号、缓存头、压缩、404）**开箱就是对的**，单机部署什么都不用配。
+下面是你可能需要动的四种情况。
+
+### 默认行为（实测）
+
+| 请求 | 行为 |
+| --- | --- |
+| `/static/v1450f12f/js/app.js`（带版本） | `Cache-Control: public, max-age=31536000, immutable` + `ETag` |
+| `/static/js/app.js`（老的无版本 URL） | `Cache-Control: no-cache` + `ETag`，内容没变时返回 **304** |
+| 带 `Accept-Encoding: gzip` | `Content-Encoding: gzip`（1701 → 792 字节，Swoole 自动压） |
+| 文件不存在 | 404，不会漏出目录内容 |
+| 外壳 HTML（`/admin`、`/admin/login.html`） | `Cache-Control: no-cache`（里面有 CSRF token 和版本指针，不能缓存） |
+
+版本号来自 `public/static` 下所有文件的内容信息（`Assets::version()`），改任何一个文件
+都会换 URL —— 所以不需要手动清 CDN / 浏览器缓存。
+
+### 什么时候要动配置
+
+| 场景 | 要做的 |
+| --- | --- |
+| 容器镜像 / 只读文件系统 | `assets.auto_publish = false`，在**构建镜像时**跑一次 `admin:install`（否则每次启动同步会失败，只记一条 warning） |
+| 前端资源交给 nginx 直发 | 加一个 `location`，并**把版本段 rewrite 掉**（见下面的片段）；否则 `/static/v<hash>/…` 会 404 |
+| 想省 CPU，或网关不压缩 | `admin:install --gzip`；不想让 PHP 发预压文件就 `assets.gzip = false` |
+| `public` 不在默认位置 | 改 `assets.public_path`（**绝对路径**），nginx 的 root 跟着改 |
+
+```nginx
+# 可选：让 nginx 直接发前端资源（省掉 PHP 的转发）
+location ^~ /static/ {
+    root /path/to/project/public;
+    # 面板的 URL 带版本号，磁盘上没有 v<hash> 这层目录，必须先撸掉
+    rewrite ^/static/v[0-9a-z]{6,16}/(.*)$ /static/$1 break;
+    expires 1y;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+}
+```
+
+不写这段 rewrite、也不改别的 —— 让 PHP 发反而更省事：`AssetController` 已经把
+版本前缀、`ETag`/304、`.gz` 协商、目录穿越防护都处理了。
+
+### 四条别踩的线
+
+1. **别手改 `public/static/**`**：那是发布产物，每次启动会被包内 `resources/static` 覆盖
+   （要改就改包内源码，或把 `assets.auto_publish` 设成 `false` 自己托管）。
+2. **多机 / 多副本**：`public/static` 是本地文件，每台机器都要有同一份 —— 在镜像里
+   跑 `admin:install` 最省心，不要去共享目录里各写各的。
+3. **面板自身的资源必须同源**：`assetBase` 固定是 `/static`（只有 Vue / Naive UI 这两个
+   依赖能走 CDN，见上一节）。想整站换域名，用反向代理把它带过去。
+4. **别给外壳 HTML 加缓存**：它带 `no-cache` 是有原因的（版本指针 + CSRF token）。
 
 ---
 
@@ -635,7 +689,10 @@ AuditLog::record('update', [
 | `permission_map` | `[]` | 额外的「路径前缀 => 权限」 |
 | `upload.path` / `max_size` | `uploads` / `2` | 上传目录（相对 `public/`）、单文件上限 MB |
 | `menus` | `[]` | 侧边栏；留空用 `admin_menu` 表，再空用内置默认 |
-| `assets.auto_publish` | `true` | 每次启动同步前端资源到 `public/` |
+| `assets.auto_publish` | `true` | 每次启动把前端资源同步到 `public/` |
+| `assets.public_path` | `BASE_PATH/public` | 静态资源根目录（**绝对路径**） |
+| `assets.gzip` | `true` | 有预生成 `.gz` 时优先发压缩版（Swoole 本来也会实时压） |
+| `security.csp.enabled` | `true` | 关掉就不发 CSP（只留 X-Frame-Options 等） |
 | `home_page` | `App\Admin\Dashboard` | 首页实现类，不存在则用包内默认 |
 
 会话安全：Cookie 里带 `pv` 指纹（= `sha1(密码哈希 + session_version)`），改密码或
@@ -650,24 +707,12 @@ AuditLog::record('update', [
 - [ ] 确认资源模式：内网/离线环境用**自托管**（`--self-host`）
 - [ ] `hyperf-admin.auth.enabled` 保持 `true`，`auth.except` 别放太宽的路径
 - [ ] HTTPS 下确认响应头有 HSTS（`SecurityHeadersMiddleware` 会自动加）
-- [ ] 生产建议把 `/static` 交给 nginx 直接发（见下），PHP 进程只处理 JSON 与 HTML 外壳
+- [ ] 只读文件系统/镜像部署：`assets.auto_publish = false`，构建时跑 `admin:install`
 - [ ] 确认 `public/uploads` 可写（或把上传目录挂到持久卷）
 - [ ] `storage`/`runtime` 目录不可通过 Web 访问
 
-```nginx
-# 可选：把 /static 交给 nginx 直接发（省掉 PHP 的转发）。
-# 注意面板的 URL 带版本号（/static/v1a2b3c4d/js/app.js），磁盘上没有这个目录，
-# 所以要先把版本段撸掉，否则会 404。
-location ^~ /static/ {
-    root /path/to/project/public;
-    rewrite ^/static/v[0-9a-z]{6,16}/(.*)$ /static/$1 break;
-    expires 1y;
-    add_header Cache-Control "public, max-age=31536000, immutable";
-}
-```
-
-不想写这段 rewrite 就别关掉 PHP 的转发 —— `AssetController` 本来就处理了版本前缀、
-`ETag`/304、`.gz` 协商，功能上是完整的。
+> 前端资源默认由 PHP 发就够用；要交给 nginx 的话看[「静态资源」那节](#静态资源要不要配默认不用)的片段
+> （重点是那条 `rewrite`，漏了会 404）。
 
 ---
 
