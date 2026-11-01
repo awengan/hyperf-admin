@@ -11,16 +11,19 @@ Hyperf 3.1 的后台面板组件：**登录、RBAC、增删改查、审计日志
 - 只加**一个** composer 包依赖；不用 `hyperf/session`、`hyperf/paginator`，不改宿主路由
 - 前端资源有两种来源：**CDN** 或 **自托管**，一条命令切换（[见下](#前端资源cdn-还是自托管)）
 
-| 你要做的事 | 命令 |
-| --- | --- |
-| 安装 + 建表 | `composer require awengan/hyperf-admin` 然后 `php bin/hyperf.php admin:install` |
-| 只放文件不建表 | `admin:install --no-migrate`（或自己导 `sql/hyperf-admin.sql`） |
-| 改密码 | `php bin/hyperf.php admin:password admin 新密码` |
-| 强制下线 | `php bin/hyperf.php admin:revoke admin` |
+**你要做的事，就两条：**
 
-> 装之前先把 `.env` 的 `DB_*` 配好、库建好 —— `admin:install` 会直接建表。
-> 默认账号 `admin / admin123`，**上线前一定要改密码并设置 `ADMIN_SECRET`**，
-> 见[上线检查清单](#上线检查清单)。
+```bash
+composer require awengan/hyperf-admin
+php bin/hyperf.php admin:install
+```
+
+第 2 步会发布前端资源、建 9 张表、写入初始数据；然后 `php bin/hyperf.php start`，
+用 `admin / admin123` 登录就完事了。
+
+> 因为它会连数据库，**装之前先把 `.env` 的 `DB_*` 配好、库建好**（`CREATE DATABASE ...`）；
+> 没配好也不会中断，会提示你配好再跑一次。
+> **上线前一定要改密码并设置 `ADMIN_SECRET`**，见[上线检查清单](#上线检查清单)。
 
 ---
 
