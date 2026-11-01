@@ -9,8 +9,8 @@ use Hyperf\Database\Schema\Schema;
 /**
  * Hyperf Admin 的全部表结构 + 内置种子数据。
  *
- * 与 `database/admin.sql` 等价 —— 想用迁移管理就
- * `php bin/hyperf.php admin:install --migrate && php bin/hyperf.php migrate`。
+ * 与 `database/admin.sql` 等效。`php bin/hyperf.php admin:install` 默认就会把它
+ * 发布到宿主的 `migrations/` 并执行（`--no-migrate` 可跳过）。
  *
  * 每个表都先 `hasTable()` 判断，种子用 `exists()` 兜底，所以**可以重复执行**，
  * 也可以安全地跑在一个已经有 `admin.sql` 建好表的库上。
