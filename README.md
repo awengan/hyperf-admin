@@ -63,12 +63,16 @@ php bin/hyperf.php admin:install --migrate            # ③ 多环境部署：�
 
 ②③ 可以叠加（`--migrate --self-host`）。**资源模式的取舍见下一节**，选错了面板会白屏。
 
+> **`--migrate` 决定要不要建表**：不带它，`admin:install` **完全不碰数据库** —— 只把建表
+> SQL 放到 `sql/hyperf-admin.sql`，表结构和一个 `admin` 账号要你自己导入；
+> 带上它，才会发布迁移、建 9 张表（8 张业务 + `migrations` 记账）并写入初始数据。
+
 `admin:install` 的完整选项：
 
 | 选项 | 作用 |
 | --- | --- |
-| （无） | 发布前端资源到 `public/static`、配置到 `config/autoload/hyperf-admin.php`、SQL 到 `sql/hyperf-admin.sql` |
-| `--migrate` | 额外发布迁移文件并执行 `migrate`（替代手工导入 SQL） |
+| （无） | 发布前端资源到 `public/static`、配置到 `config/autoload/hyperf-admin.php`、SQL 到 `sql/hyperf-admin.sql`（**不连数据库**） |
+| `--migrate` | 额外发布迁移文件并执行 `migrate`：建表 + 写入初始数据（替代手工导入 SQL） |
 | `--self-host` | 把 Vue / Naive UI 从 CDN 下载到本地（[两种资源模式](#前端资源cdn-还是自托管)） |
 | `--reset-vendor` | 删掉本地那一份，切回 CDN |
 | `--gzip` | 给已发布的静态资源预生成 `.gz`（可选，省带宽） |
@@ -80,13 +84,15 @@ php bin/hyperf.php admin:install --migrate            # ③ 多环境部署：�
 ### 3. 建库 + 启动
 
 ```bash
-# 方式一：导入 SQL（最快）
-mysql -u root -p <数据库> < sql/hyperf-admin.sql
+# 二选一：
+mysql -u root -p <数据库> < sql/hyperf-admin.sql     # A. 手工导入 SQL（表 + 初始数据）
+# B. 已经用过 admin:install --migrate 的话，表和数据都齐了，跳过这一步
 
-# 方式二：已经用过 --migrate 就不用这一步
-# 无论如何，先按需改 .env 的 DB_*
 php bin/hyperf.php start
 ```
+
+**两条路的效果一样**：8 张业务表 + `1 个 admin 账号 / 1 个超级管理员角色 / 5 个权限 /
+6 条菜单`。区别只是 SQL 走一次性导入（可重复执行），迁移走 `migrations` 记账表（跑过就跳过）。
 
 打开 **`http://127.0.0.1:9501/admin`**（登录页是 `/admin/login.html`），
 用 `admin / admin123` 登录。
