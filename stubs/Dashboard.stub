@@ -1,0 +1,64 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Admin;
+
+use Awengan\HyperfAdmin\Content;
+
+/**
+ * 后台首页 —— **这是你的文件，随便改**。
+ *
+ * `admin:install` 发布它时不会覆盖已存在的版本（升级也不会），
+ * 只有 `admin:install --force` 才会重置成默认内容。
+ *
+ * 可用的积木：
+ *   ->title(string)               页面标题
+ *   ->card(['label' => .., 'value' => .., 'hint' => ..])   统计卡片
+ *   ->html(string)                任意 HTML（开发者自己写，当作可信）
+ *   ->divider()                   分隔线
+ *
+ * 想加图表 / 自定义布局？在 html() 里写你自己的标记，
+ * 前端会把面包屑和标题渲染好，正文就是这个方法的返回。
+ */
+final class Dashboard
+{
+    public function make(): Content
+    {
+        return (new Content())
+            ->title('概览')
+            ->html($this->html());
+    }
+
+    /**
+     * 首页正文：改这里就行。
+     */
+    public function html(): string
+    {
+        return <<<'HTML'
+<div class="ea-dash__cols">
+    <div class="ea-dash__col">
+        <section class="ea-dash__section">
+            <h3>快速开始</h3>
+            <table class="ea-dash__table">
+                <tbody>
+                    <tr><th>用户管理</th><td><b>账号 / 角色 / 权限</b><br><span class="ea-dash__muted">左侧「系统管理」</span></td></tr>
+                    <tr><th>修改密码</th><td><b>右上角用户名 → 修改密码</b><br><span class="ea-dash__muted">需要验证当前密码</span></td></tr>
+                    <tr><th>审计日志</th><td><b>谁在什么时候做了什么</b><br><span class="ea-dash__muted">含请求路径与 IP</span></td></tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+    <div class="ea-dash__col">
+        <section class="ea-dash__section">
+            <h3>这是你自己的首页</h3>
+            <p class="ea-dash__muted">
+                文件位置：<code>app/Admin/Dashboard.php</code>。<br>
+                改完刷新即可，不需要重新发布；升级组件也不会覆盖它。
+            </p>
+        </section>
+    </div>
+</div>
+HTML;
+    }
+}

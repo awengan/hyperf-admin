@@ -1,0 +1,59 @@
+{
+    "name": "awengan/hyperf-admin",
+    "description": "Hyperf 3.1 后台面板组件：Vue 3 + Naive UI，原生 ESM 无构建，自带登录、RBAC、CRUD、审计日志",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "hyperf",
+        "admin",
+        "admin-panel",
+        "naive-ui",
+        "vue3",
+        "crud",
+        "builder",
+        "rbac"
+    ],
+    "homepage": "https://github.com/awengan/hyperf-admin",
+    "support": {
+        "issues": "https://github.com/awengan/hyperf-admin/issues",
+        "source": "https://github.com/awengan/hyperf-admin"
+    },
+    "authors": [
+        {
+            "name": "Awengan"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "hyperf/command": "~3.1.0",
+        "hyperf/config": "~3.1.0",
+        "hyperf/constants": "~3.1.0",
+        "hyperf/context": "~3.1.0",
+        "hyperf/contract": "~3.1.0",
+        "hyperf/database": "~3.1.0",
+        "hyperf/db-connection": "~3.1.0",
+        "hyperf/di": "~3.1.0",
+        "hyperf/event": "~3.1.0",
+        "hyperf/framework": "~3.1.0",
+        "hyperf/http-message": "~3.1.0",
+        "hyperf/http-server": "~3.1.0",
+        "hyperf/logger": "~3.1.0",
+        "hyperf/support": "~3.1.0",
+        "hyperf/validation": "~3.1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Awengan\\HyperfAdmin\\": "src/"
+        }
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Awengan\\HyperfAdmin\\ConfigProvider"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}

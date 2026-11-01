@@ -1,0 +1,12 @@
+{
+  "name": "awengan-hyperf-admin-browser-tests",
+  "private": true,
+  "type": "module",
+  "description": "Playwright smoke tests for the client-rendered admin (needs a local Chrome/Edge, no browser download)",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

@@ -1,0 +1,6 @@
+# 打进 dist（Composer 下载的 zip）时排除开发用文件，让包体最小
+/.github        export-ignore
+/docs           export-ignore
+/tests          export-ignore
+/.gitignore     export-ignore
+/.gitattributes export-ignore

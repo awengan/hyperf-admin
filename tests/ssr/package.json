@@ -1,0 +1,15 @@
+{
+  "name": "awengan-hyperf-admin-ssr-tests",
+  "private": true,
+  "type": "module",
+  "description": "SSR smoke tests for the Naive UI frontend (optional, needs network install)",
+  "scripts": {
+    "test": "node --import ./resolve-hook.mjs run.mjs"
+  },
+  "devDependencies": {
+    "@css-render/vue3-ssr": "^0.15.14",
+    "@vue/server-renderer": "^3.5.13",
+    "naive-ui": "^2.45.3",
+    "vue": "^3.5.13"
+  }
+}
