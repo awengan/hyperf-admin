@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.4 — 2026-11-01
+
+只改文档，没有代码变更。
+
+- README 顶部收敛成「你要做的事，就两条」：`composer require` + `admin:install`，
+  其余命令（改密码、强制下线、只放文件不建表）挪到各自该在的章节
+- README 说明 `admin:install` 会连数据库，装之前先配好 `.env` 的 `DB_*`、建好库
+- 目录结构里 `database/migrations/` 的注释改为「`admin:install` 默认执行」
+
 ## 0.0.3 — 2026-11-01
 
 - **行为变更**：`admin:install` 现在默认就建表 + 写初始数据（不再需要 `--migrate`），
