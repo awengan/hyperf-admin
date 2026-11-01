@@ -13,12 +13,13 @@ Hyperf 3.1 的后台面板组件：**登录、RBAC、增删改查、审计日志
 
 | 你要做的事 | 命令 |
 | --- | --- |
-| 安装 | `composer require awengan/hyperf-admin` + `php bin/hyperf.php admin:install` |
-| 建库 | 导入 `sql/hyperf-admin.sql`，或 `admin:install --migrate` |
+| 安装 + 建表 | `composer require awengan/hyperf-admin` 然后 `php bin/hyperf.php admin:install` |
+| 只放文件不建表 | `admin:install --no-migrate`（或自己导 `sql/hyperf-admin.sql`） |
 | 改密码 | `php bin/hyperf.php admin:password admin 新密码` |
 | 强制下线 | `php bin/hyperf.php admin:revoke admin` |
 
-> 默认账号 `admin / admin123`。**上线前一定要改密码并设置 `ADMIN_SECRET`**，
+> 装之前先把 `.env` 的 `DB_*` 配好、库建好 —— `admin:install` 会直接建表。
+> 默认账号 `admin / admin123`，**上线前一定要改密码并设置 `ADMIN_SECRET`**，
 > 见[上线检查清单](#上线检查清单)。
 
 ---
@@ -46,33 +47,50 @@ composer require awengan/hyperf-admin
 `skeleton` 里没有 `hyperf/validation`，它会作为依赖自动带进来；`ConfigProvider`
 通过 `extra.hyperf.config` 自动生效，**宿主不用改任何 config 文件**。
 
-### 2. 发布资源 + 建库
+### 2. 先配好数据库
+
+`admin:install` 会**自动建表并写入初始数据**，所以它需要能连上库。先改 `.env`：
+
+```dotenv
+DB_DRIVER=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=hyperf_admin     # 库要先建好：CREATE DATABASE hyperf_admin DEFAULT CHARSET utf8mb4
+DB_USERNAME=root
+DB_PASSWORD=你的密码
+```
+
+### 3. 一条命令装好（资源 + 建表）
 
 ```bash
-php bin/hyperf.php admin:install      # 发布前端资源、默认配置、建表 SQL
+php bin/hyperf.php admin:install
 rm -rf runtime/container              # 注解扫描路径变了，必须清缓存
 ```
+
+它做三件事：发布前端资源到 `public/static`、放好默认配置、**建 9 张表并写入初始数据**
+（8 张业务表 + `1 个 admin 账号 / 1 个超级管理员角色 / 5 个权限 / 6 条菜单`）。
 
 三种常见组合，按环境挑一个：
 
 ```bash
 php bin/hyperf.php admin:install                      # ① 公网：前端依赖走 CDN（默认）
 php bin/hyperf.php admin:install --self-host          # ② 内网/离线：把 Vue+NaiveUI 下到本地（需一次外网）
-php bin/hyperf.php admin:install --migrate            # ③ 多环境部署：顺带发布迁移并建表
+php bin/hyperf.php admin:install --no-migrate         # ③ 只想放文件、暂不碰数据库
 ```
 
-②③ 可以叠加（`--migrate --self-host`）。**资源模式的取舍见下一节**，选错了面板会白屏。
+②③ 可以叠加（`--self-host --no-migrate`）。**资源模式的取舍见下一节**，选错了面板会白屏。
 
-> **`--migrate` 决定要不要建表**：不带它，`admin:install` **完全不碰数据库** —— 只把建表
-> SQL 放到 `sql/hyperf-admin.sql`，表结构和一个 `admin` 账号要你自己导入；
-> 带上它，才会发布迁移、建 9 张表（8 张业务 + `migrations` 记账）并写入初始数据。
+> **数据库连不上时它不会崩**：前端资源照常发布，然后提示
+> `连不上数据库，表还没建：SQLSTATE[...]`，让你配好 `.env` 后重跑一次。
+> 也可以完全绕开它，自己 `mysql < sql/hyperf-admin.sql` 导 SQL（两条路结果一样）。
 
 `admin:install` 的完整选项：
 
 | 选项 | 作用 |
 | --- | --- |
-| （无） | 发布前端资源到 `public/static`、配置到 `config/autoload/hyperf-admin.php`、SQL 到 `sql/hyperf-admin.sql`（**不连数据库**） |
-| `--migrate` | 额外发布迁移文件并执行 `migrate`：建表 + 写入初始数据（替代手工导入 SQL） |
+| （无） | 发布前端资源、默认配置、SQL，**并执行迁移建表 + 写初始数据** |
+| `--no-migrate` | 只发布文件，不连数据库（`.env` 还没配好、或想自己导 SQL 时用） |
+| `--migrate` | 旧写法，现在默认就执行，保留只为兼容脚本 |
 | `--self-host` | 把 Vue / Naive UI 从 CDN 下载到本地（[两种资源模式](#前端资源cdn-还是自托管)） |
 | `--reset-vendor` | 删掉本地那一份，切回 CDN |
 | `--gzip` | 给已发布的静态资源预生成 `.gz`（可选，省带宽） |
@@ -81,21 +99,17 @@ php bin/hyperf.php admin:install --migrate            # ③ 多环境部署：�
 > `--force` 是重置不是更新。只升级组件代码时**别带 `-f`**；要新的配置/SQL 又不想重置，
 > 手动覆盖 `config/autoload/hyperf-admin.php` 和 `sql/hyperf-admin.sql` 两个文件即可。
 
-### 3. 建库 + 启动
+### 4. 启动
 
 ```bash
-# 二选一：
-mysql -u root -p <数据库> < sql/hyperf-admin.sql     # A. 手工导入 SQL（表 + 初始数据）
-# B. 已经用过 admin:install --migrate 的话，表和数据都齐了，跳过这一步
-
 php bin/hyperf.php start
 ```
 
-**两条路的效果一样**：8 张业务表 + `1 个 admin 账号 / 1 个超级管理员角色 / 5 个权限 /
-6 条菜单`。区别只是 SQL 走一次性导入（可重复执行），迁移走 `migrations` 记账表（跑过就跳过）。
+表和数据都齐了，直接就能登录。打开 **`http://127.0.0.1:9501/admin`**
+（登录页是 `/admin/login.html`），用 `admin / admin123` 登录。
 
-打开 **`http://127.0.0.1:9501/admin`**（登录页是 `/admin/login.html`），
-用 `admin / admin123` 登录。
+> 想手工建表也可以：`mysql -u root -p <库> < sql/hyperf-admin.sql`（脚本可重复执行）。
+> 它和迁移的区别只是记账方式不同 —— 最终都是 8 张业务表 + 同一份初始数据。
 
 - 面板所有页面都在 **`/admin`** 下面；静态资源在 `/static`
 - 想换前缀：只改 `hyperf-admin.api_base`（同时改 `login_path` / `home_path`）
@@ -193,8 +207,8 @@ CSP 是**自动跟随**的：CDN 模式下 `script-src` 会自动放行 `https:/
 
 ```bash
 # 1) 构建机上（同一个项目、同一个组件版本）
-php bin/hyperf.php admin:install
-php bin/hyperf.php admin:install --self-host        # 下载依赖到 public/static/vendor
+#    --no-migrate：这一步只是准备前端文件，构建机通常没配数据库
+php bin/hyperf.php admin:install --no-migrate --self-host
 
 # 2) 打包前端资源（2.5 MB 左右）
 tar czf admin-assets.tar.gz public/static
@@ -202,7 +216,9 @@ tar czf admin-assets.tar.gz public/static
 # 3) 拷到内网服务器，解到项目根目录
 tar xzf admin-assets.tar.gz
 
-# 4) 正常启动即可，不再需要外网
+# 4) 内网服务器上配好 .env 的 DB_*，再跑一次 admin:install（会自动建表），然后 start
+php bin/hyperf.php admin:install
+php bin/hyperf.php start
 ```
 
 要点：`public/static/js` 和 `public/static/vendor` **要一起拷**（import map 里写的是
@@ -726,14 +742,15 @@ AuditLog::record('update', [
 
 ```bash
 composer update awengan/hyperf-admin
-php bin/hyperf.php admin:install            # 同步前端资源（不会覆盖你改过的配置/SQL）
+php bin/hyperf.php admin:install            # 同步前端资源 + 补跑新增的迁移
+#   （不会覆盖你改过的配置/SQL；表结构没变时就是 Nothing to migrate）
 # 自托管模式还要刷新本地依赖：
 php bin/hyperf.php admin:install --reset-vendor --self-host
 rm -rf runtime/container && php bin/hyperf.php start
 ```
 
-数据库有变更时看 `database/migrations/`，或者对比新的 `sql/hyperf-admin.sql`
-（里面带可重复执行的清理/补列语句）。
+新版本带的迁移会跟着 `admin:install` 自动补跑；也可以对比新的 `sql/hyperf-admin.sql`
+（里面带可重复执行的清理/补列语句），老库导入后同样会补齐结构、清掉已下线的演示数据。
 
 ---
 
