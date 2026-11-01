@@ -1,5 +1,8 @@
 # Hyperf Admin (Naive UI)
 
+[![Latest Version](https://img.shields.io/packagist/v/awengan/hyperf-admin.svg)](https://packagist.org/packages/awengan/hyperf-admin)
+[![License](https://img.shields.io/packagist/l/awengan/hyperf-admin.svg)](https://packagist.org/packages/awengan/hyperf-admin)
+
 Hyperf 3.1 的后台面板组件：**登录、RBAC、增删改查、审计日志**都齐了，装完就能用，
 写业务只需要拼 `Form` / `Grid`。
 
