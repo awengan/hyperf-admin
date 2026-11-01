@@ -31,9 +31,10 @@ class InstallCommand extends HyperfCommand
     public function configure(): void
     {
         parent::configure();
-        $this->setDescription('发布 Hyperf Admin (Naive UI) 的前端资源与配置');
+        $this->setDescription('发布前端资源与配置，并自动建表（执行迁移）');
         $this->addOption('force', 'f', InputOption::VALUE_NONE, '覆盖已发布的配置、SQL 与静态资源');
-        $this->addOption('migrate', null, InputOption::VALUE_NONE, '发布迁移文件并执行 migrate（替代手工导入 SQL）');
+        $this->addOption('no-migrate', null, InputOption::VALUE_NONE, '只发布文件，不连数据库（.env 还没配好时用）');
+        $this->addOption('migrate', null, InputOption::VALUE_NONE, '（默认就会执行，保留只为兼容旧脚本）');
         $this->addOption('self-host', null, InputOption::VALUE_NONE, '把 Vue / Naive UI 从 CDN 下载到 public/static/vendor（离线/内网部署用）');
         $this->addOption('reset-vendor', null, InputOption::VALUE_NONE, '删除本地前端资源，切回 CDN');
         $this->addOption('gzip', null, InputOption::VALUE_NONE, '为已发布的静态资源预生成 .gz（传输层压缩，不改源码）');
@@ -42,7 +43,8 @@ class InstallCommand extends HyperfCommand
     public function handle(): void
     {
         $force = (bool) $this->input->getOption('force');
-        $migrate = (bool) $this->input->getOption('migrate');
+        // 建表是默认行为：装完直接 start 就能用。`--migrate` 继续接受（兼容旧文档/脚本）。
+        $migrate = ! (bool) $this->input->getOption('no-migrate');
         $selfHost = (bool) $this->input->getOption('self-host');
         $resetVendor = (bool) $this->input->getOption('reset-vendor');
         $gzip = (bool) $this->input->getOption('gzip');
@@ -63,23 +65,43 @@ class InstallCommand extends HyperfCommand
         $this->line(sprintf('已发布 %d 个前端文件到 public/。', $files), 'info');
         $this->line('配置文件：' . $this->relative($config));
 
+        $migrated = false;
+
         if ($migrate) {
             $migrations = Assets::publishMigrations();
             $this->line(sprintf('迁移文件：%d 个 → migrations/（已存在的不覆盖）', count($migrations)));
 
-            $code = $this->call('migrate');
-
             $this->newLine();
 
-            if ($code === 0) {
-                $this->line('迁移执行完成，表结构与种子数据已就绪。', 'info');
-                $this->line('默认账号：admin / admin123（首次登录后请立刻改密码）', 'comment');
+            // 先探一下连接：库还没建 / .env 没配时，直接说人话，而不是让 migrate
+            // 抛一大段堆栈（这是新项目第一次跑的常见状态）。
+            $dbError = $this->databaseError();
+
+            if ($dbError !== null) {
+                $this->warn('连不上数据库，表还没建：' . $dbError);
+                $this->line('  1) 配好 .env 里的 DB_*，并先把库建好（CREATE DATABASE ...）', 'comment');
+                $this->line('  2) 重跑：php bin/hyperf.php admin:install', 'comment');
+                $this->line('  或手工导入：mysql -u root -p <库> < ' . $this->relative($sql), 'comment');
             } else {
-                $this->warn('migrate 返回非 0，请检查上面的输出。');
-                $this->line('也可以手工执行：php bin/hyperf.php migrate', 'comment');
+                try {
+                    $code = $this->call('migrate');
+                } catch (Throwable $e) {
+                    $code = -1;
+                    $this->warn('migrate 抛异常：' . $e->getMessage());
+                }
+
+                if ($code === 0) {
+                    $migrated = true;
+                    $this->line('表结构与初始数据已就绪。', 'info');
+                    $this->line('默认账号：admin / admin123（首次登录后请立刻改密码）', 'comment');
+                } else {
+                    $this->warn('migrate 返回非 0，表可能没建全，具体错误见上面。');
+                    $this->line('  修好后重跑：php bin/hyperf.php admin:install', 'comment');
+                    $this->line('  或手工导入：mysql -u root -p <库> < ' . $this->relative($sql), 'comment');
+                }
             }
         } else {
-            $this->line('建表 SQL：' . $this->relative($sql));
+            $this->line('跳过建表（--no-migrate）。建表 SQL：' . $this->relative($sql), 'comment');
         }
 
         // 前端资源自托管（离线/内网部署）
@@ -188,8 +210,8 @@ class InstallCommand extends HyperfCommand
 
         $step = 0;
 
-        if (! $migrate) {
-            $this->line(sprintf('  %d. 建库：导入 SQL（mysql ... < %s）或改用 admin:install --migrate', ++$step, $this->relative($sql)));
+        if (! $migrated) {
+            $this->line(sprintf('  %d. 配好 .env 里的 DB_*（数据库本身要先建好），然后重跑这条命令建表', ++$step));
         }
 
         $this->line(sprintf('  %d. 按需修改 config/autoload/hyperf-admin.php（默认账号 admin / admin123）', ++$step));
@@ -205,5 +227,21 @@ class InstallCommand extends HyperfCommand
         $base = BASE_PATH . '/';
 
         return str_starts_with($path, $base) ? substr($path, strlen($base)) : $path;
+    }
+
+    /**
+     * 试连一次数据库：连得上返回 null，否则返回错误摘要（一行，不带堆栈）。
+     */
+    private function databaseError(): ?string
+    {
+        try {
+            \Hyperf\DbConnection\Db::connection()->getPdo();
+
+            return null;
+        } catch (Throwable $e) {
+            $message = trim((string) preg_replace('/\s+/u', ' ', $e->getMessage()));
+
+            return $message === '' ? $e::class : $message;
+        }
     }
 }
