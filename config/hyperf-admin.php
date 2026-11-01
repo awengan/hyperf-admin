@@ -169,14 +169,28 @@ return [
     'assets' => [
         /**
          * 每次启动把组件内的 `resources/` 同步到宿主 `public/`。
-         * 只读文件系统或交给 CI 发布时设为 false。
+         *
+         * 只读文件系统（容器镜像）或交给 CI 发布时设为 false，
+         * 改由构建阶段跑一次 `php bin/hyperf.php admin:install`。
          */
         'auto_publish' => (bool) env('ADMIN_ASSETS_AUTO_PUBLISH', true),
 
         /**
-         * 静态资源根目录（宿主 public 下的相对路径）。
+         * 静态资源根目录（**绝对路径**，默认 `BASE_PATH/public`）。
+         *
+         * 面板的 URL 是 `/static/v<hash>/…`，磁盘上在 `<这里>/static/…`。
+         * 换位置的话，nginx 的 `root` 要跟着改。
          */
         'public_path' => BASE_PATH . '/public',
+
+        /**
+         * 是否把安装时预生成的 `.gz` 发给客户端（`admin:install --gzip` 生成）。
+         *
+         * 传输压缩其实 Swoole 自己就会做（`http_compression` 默认开着），
+         * 这个开关只决定「优先发磁盘上压好的那份」——省掉每次请求的实时压缩。
+         * 前面有 nginx / CDN 负责压缩时可以关掉。
+         */
+        'gzip' => (bool) env('ADMIN_ASSETS_GZIP', true),
     ],
 
     /* ------------------------------------------------------------------ 数据 */
