@@ -275,6 +275,23 @@ const ShowPage = await load('components/ShowPage.js')
     if (html.includes('ea-actions')) throw new Error('只读日志页不应渲染操作列')
   })
 
+  await check('富文本字段（表单页，SSR 只渲染外壳）', async () => {
+    const page = await loadFixture('rich-text')
+    const html = await render(FormPage, { page, http })
+
+    expect(html, ['新增文章', '标题', '正文', '状态'], '富文本表单')
+
+    // SSR 阶段 Quill 还没加载（onMounted 才 import），渲染的是容器 + 工具栏
+    if (!html.includes('ea-rich-text')) throw new Error('富文本字段的容器没有渲染')
+    if (!html.includes('ea-rich-text__bar')) throw new Error('工具栏没有渲染')
+
+    const buttons = (html.match(/ea-rich-text__btn/g) || []).length
+    if (buttons !== 15) throw new Error(`工具栏按钮数量不对：${buttons}`)
+
+    // 降级提示不该出现（说明 import 失败逻辑没被误触发）
+    if (html.includes('富文本编辑器加载失败')) throw new Error('SSR 下不应出现加载失败提示')
+  })
+
   await check('用户详情（Show + 展示器）', async () => {
     const page = await loadFixture('user-show')
     const html = await render(ShowPage, { page, http })
