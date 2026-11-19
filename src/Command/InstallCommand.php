@@ -147,6 +147,22 @@ class InstallCommand extends HyperfCommand
                 if ($result['files'] > 0) {
                     $this->line('现在 import map 指向本地文件；删掉 public' . VendorAssets::VENDOR_PATH . ' 即可切回 CDN。', 'comment');
                 }
+
+                // 半残的 vendor 目录 = 前端白屏（import map 指向了不存在的文件），
+                // 必须明确失败，而不是打完 warning 就退出 0
+                if ($result['errors'] !== []) {
+                    $this->newLine();
+                    $this->error(sprintf(
+                        '自托管没下载完整（%d 个模块失败），public%s 现在是半残状态，前端会白屏。',
+                        count($result['errors']),
+                        VendorAssets::VENDOR_PATH
+                    ));
+                    $this->line('重跑这条命令即可（已下好的文件会复用）：', 'comment');
+                    $this->line('  php bin/hyperf.php admin:install --self-host', 'comment');
+                    $this->line('想先退回 CDN：php bin/hyperf.php admin:install --reset-vendor', 'comment');
+
+                    exit(self::FAILURE);
+                }
             }
         }
 
