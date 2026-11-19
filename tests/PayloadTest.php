@@ -69,6 +69,7 @@ spl_autoload_register($sourceLoader, true, true);
 use Awengan\HyperfAdmin\Content;
 use Awengan\HyperfAdmin\Exception\FormComponentException;
 use Awengan\HyperfAdmin\Form;
+use Awengan\HyperfAdmin\Grid;
 use Awengan\HyperfAdmin\Helper\MenuHelper;
 use Awengan\HyperfAdmin\Helper\Result;
 use Awengan\HyperfAdmin\Model\Menu;
@@ -460,6 +461,59 @@ test('Form maps the switch and datetime aliases', function () {
 
     assertSame('switch', $fields[0]['type']);
     assertSame('datetime', $fields[1]['type']);
+});
+
+test('RichText 字段的 payload 形状', function () {
+    $form = new Form(new Menu());
+    $form->url('/article/store');
+    $form->richText('content', '正文')
+        ->height(360)
+        ->toolbar(['bold', 'italic', 'nope', 'image'])
+        ->placeholder('写点什么')
+        ->maxLength(8000)
+        ->upload(false);
+
+    $field = $form->getData()['data']['fields'][0];
+
+    assertSame('richText', $field['type']);
+    assertSame('content', $field['name']);
+    assertSame(360, $field['height']);
+    assertSame(['bold', 'italic', 'image'], $field['toolbar'], '未知按钮应被过滤');
+    assertSame('写点什么', $field['placeholder']);
+    assertSame(8000, $field['max_length']);
+    assertSame(false, $field['upload']);
+    assertSame('max:8000', $form->rules()['content'], 'maxLength 应进校验规则');
+});
+
+test('RichText 保存前会做服务端清洗', function () {
+    $form = new Form(new Menu());
+    $form->url('/article/store');
+    $form->richText('content', '正文');
+
+    /** @var \Awengan\HyperfAdmin\UI\Form\RichText $field */
+    $field = (new ReflectionProperty($form, 'fields'))->getValue($form)[0];
+
+    $clean = $field->prepareValue(
+        '<h2>标题</h2><p>正文<script>alert(1)</script></p><img src="javascript:alert(1)">'
+    );
+
+    assertSame('<h2>标题</h2><p>正文</p><img>', $clean);
+    assertSame('', $field->prepareValue(null));
+});
+
+test('Grid / Show 的 html 展示器带 limit', function () {
+    $grid = new Grid(new Menu());
+    $grid->url('/article');
+    $column = $grid->column('content', '正文')->html(80);
+
+    assertSame('html', $column->displayer);
+    assertSame(80, $column->displayerOptions['limit']);
+
+    $showField = (new \Awengan\HyperfAdmin\UI\Show\Field('content', '正文'))->html();
+    $payload = $showField->toArray();
+
+    assertSame('html', $payload['displayer']);
+    assertSame(0, $payload['displayer_options']['limit']);
 });
 
 test('Form rejects unknown field types', function () {
