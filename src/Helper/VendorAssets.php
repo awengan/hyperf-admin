@@ -34,6 +34,9 @@ final class VendorAssets
 
     private const MAX_DEPTH = 8;
 
+    /** 单个模块的抓取重试次数（CDN 抖动很常见） */
+    private const FETCH_ATTEMPTS = 3;
+
     /**
      * `URL => 本地文件名`
      *
@@ -321,14 +324,36 @@ final class VendorAssets
         return $name . '-' . substr(md5($url), 0, 8) . '.mjs';
     }
 
+    /**
+     * 抓一个模块。CDN 偶发 5xx / 超时很常见（尤其是几 MB 的 bundle），
+     * 所以这里重试 {@see FETCH_ATTEMPTS} 次再算失败 —— 否则一次抖动就会让
+     * `--self-host` 留下半残的 vendor 目录（前端白屏）。
+     */
     private function fetch(string $url): ?string
+    {
+        for ($attempt = 1; $attempt <= self::FETCH_ATTEMPTS; ++$attempt) {
+            $body = $this->fetchOnce($url);
+
+            if ($body !== null) {
+                return $body;
+            }
+
+            if ($attempt < self::FETCH_ATTEMPTS) {
+                usleep(300_000 * $attempt * $attempt);
+            }
+        }
+
+        return null;
+    }
+
+    private function fetchOnce(string $url): ?string
     {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT => 60,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_USERAGENT => 'awengan-hyperf-admin/self-host',
             CURLOPT_HTTPHEADER => ['Accept: */*'],
@@ -336,6 +361,7 @@ final class VendorAssets
 
         $body = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
         if ($body === false || $status < 200 || $status >= 300) {
             return null;
