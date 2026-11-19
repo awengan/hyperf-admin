@@ -386,6 +386,21 @@ export default defineComponent({
         case 'date':
           return formatDate(value, options.format || 'YYYY-MM-DD HH:mm:ss')
 
+        case 'html': {
+          const html = formatValue(value)
+
+          if (html === '') {
+            return ''
+          }
+
+          // 服务端已清洗：带 limit 的下发的是纯文本，不带的才走 v-html
+          if (Number(options.limit) > 0) {
+            return h('span', { title: html }, html)
+          }
+
+          return h('div', { class: 'ea-grid-html', innerHTML: html })
+        }
+
         case 'progressBar': {
           const percent = Math.max(0, Math.min(100, Number(value) || 0))
 
