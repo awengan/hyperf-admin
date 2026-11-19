@@ -20,9 +20,16 @@ use Hyperf\Contract\ConfigInterface;
  */
 final class UI
 {
+    /**
+     * 兜底 import map：宿主还没发布配置时（比如刚 `composer require` 完就跑
+     * `admin:install --self-host`）也要能覆盖前端所有可能的 import。
+     *
+     * 少了任何一项，`--self-host` 就会把它留成 CDN 地址 —— 内网/离线环境直接白屏。
+     */
     private const DEFAULT_IMPORT_MAP = [
         'vue' => 'https://unpkg.com/vue@3.5.13/dist/vue.esm-browser.prod.js',
         'naive-ui' => 'https://esm.sh/naive-ui@2.45.3?external=vue',
+        'quill' => 'https://esm.sh/quill@2.0.3?bundle',
     ];
 
     /**
