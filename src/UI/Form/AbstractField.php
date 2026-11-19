@@ -121,6 +121,17 @@ abstract class AbstractField extends AdminJsonBuilder
         return $this->rules;
     }
 
+    /**
+     * 落库前的值加工钩子（默认原样返回）。
+     *
+     * 富文本用它做服务端清洗（{@see RichText::prepareValue()}）；
+     * 其它字段不需要改什么，所以默认是恒等变换。
+     */
+    public function prepareValue(mixed $value): mixed
+    {
+        return $value;
+    }
+
     public function getName(): string
     {
         return $this->name;
