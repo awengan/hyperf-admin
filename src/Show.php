@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Awengan\HyperfAdmin;
 
+use Awengan\HyperfAdmin\Helper\HtmlSanitizer;
 use Awengan\HyperfAdmin\Helper\Utils;
 use Awengan\HyperfAdmin\Traits\AdminJsonBuilder;
 use Awengan\HyperfAdmin\UI\Show\Field;
@@ -202,6 +203,23 @@ class Show extends AdminJsonBuilder
         $data = parent::getData();
         $data['url'] = $this->url;
         $data['sections'] = $this->sections;
+
+        // 富文本字段：服务端清洗（limit>0 时去标签截断），前端才敢 v-html
+        $sanitizer = HtmlSanitizer::make();
+
+        foreach ($this->sections as $section) {
+            foreach ($section['fields'] ?? [] as $field) {
+                if (($field['displayer'] ?? null) !== 'html' || ! array_key_exists($field['field'], $data)) {
+                    continue;
+                }
+
+                $value = $data[$field['field']];
+                $value = is_string($value) ? $value : (string) $value;
+                $limit = (int) ($field['displayer_options']['limit'] ?? 0);
+
+                $data[$field['field']] = $limit > 0 ? $sanitizer->text($value, $limit) : $sanitizer->clean($value);
+            }
+        }
 
         return $data;
     }
