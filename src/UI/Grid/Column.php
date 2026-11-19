@@ -159,6 +159,20 @@ class Column
     }
 
     /**
+     * 富文本列：单元格里渲染 HTML（**服务端已清洗**），或只显示前 N 个字的纯文本。
+     *
+     *     $grid->column('content', '正文')->html(80);   // 列表里看摘要
+     *     $grid->column('content', '正文')->html();     // 完整渲染（慎用，会很挤）
+     *
+     * 传了 `$limit` 时服务端会**去标签截断**，下发的是纯文本，前端不做 `v-html`；
+     * 不传则下发清洗后的 HTML，由前端 `v-html` 渲染。
+     */
+    public function html(int $limit = 0): static
+    {
+        return $this->useDisplayer('html', ['limit' => max(0, $limit)]);
+    }
+
+    /**
      * 自定义展示器：`name` 必须是前端 `GridPage` 认识的键。
      *
      * @param array<string, mixed> $options
