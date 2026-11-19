@@ -432,6 +432,7 @@ $grid->column('avatar', '头像')->image('36x36')
      ->column('title', '标题')->editable()             // 单元格变输入框，失焦即保存
      ->column('created_at', '时间')->date('Y-m-d')->between(true)   // 时间区间筛选
      ->column('tags', '标签')->expand()                // 多值展开
+     ->column('content', '正文')->html(80)             // 富文本：去标签截断成摘要
      ->column('name', '姓名')->copyable()->help('点一下复制');
 ```
 
@@ -506,6 +507,60 @@ public function update(int $id): Reply|array
 ```
 
 `storeForm()` / `updateForm()` 把「校验 + 保存 + 跳转」合成一步。
+
+### 富文本（RichText）
+
+```php
+$form->richText('content', '正文')
+    ->toolbar(['bold', 'italic', 'underline', 'strike', 'heading', 'bulletList',
+               'orderedList', 'blockquote', 'codeBlock', 'link', 'image',
+               'undo', 'redo', 'clear'])
+    ->height(320)
+    ->placeholder('请输入正文')
+    ->maxLength(50000)      // 按 HTML 长度算，前端显示计数、服务端也校验
+    ->upload(true);         // 允许从本地上传图片（走 /admin/upload）
+```
+
+值就是一段 HTML，直接存 `LONGTEXT`。**服务端一定会清洗**（`Helper\HtmlSanitizer`）：
+
+| 会保留 | 会被剥掉 |
+| --- | --- |
+| `p br strong em u s h2-h4 ul ol li blockquote pre code a img hr table…` | `script style iframe svg object form input` 等整段删除 |
+| `href src alt title target rel` + `class`（仅 `language-*` / `ql-*` / `hljs-*`） | `style`、所有 `on*`、`srcdoc`、`formaction` |
+| `http/https/mailto/tel`、相对路径、`data:image/(png\|jpe?g\|gif\|webp\|avif)` | `javascript:`、`data:text/html`、`data:image/svg+xml` |
+
+清洗器还会把 Quill 的方言归一化成标准 HTML：`<ol><li data-list="bullet">` → `<ul><li>`，
+`<div class="ql-code-block-container">` → `<pre><code>`。所以**落库的内容不绑定编辑器**，
+以后换编辑器也不用迁数据。
+
+列表/详情页展示：
+
+```php
+$grid->column('content', '正文')->html(80);   // 列表里看纯文本摘要（服务端去标签截断）
+$show->field('content', '正文')->html();      // 详情页完整渲染（服务端已清洗，前端才 v-html）
+```
+
+**它会多下载多少东西？** 只有「真的渲染富文本字段的页面」才会动态 `import('quill')`：
+
+| 资源模式 | 代价 |
+| --- | --- |
+| CDN（默认） | 1 个请求（esm.sh 的 bundle，约 196 KB） |
+| 自托管 | `admin:install --self-host` 多下 **2 个文件 / 200 KB**；上线后 0 外网请求 |
+
+两个开关（`config/autoload/hyperf-admin.php`）：
+
+```php
+'cdn' => ['imports' => ['quill' => 'https://esm.sh/quill@2.0.3?bundle']],
+
+'rich_text' => [
+    // 允许正文里出现外链图片（https:）。设为 false 就只放行同源/data/blob，
+    // 此时 CSP 的 img-src 不会放宽
+    'external_images' => true,
+],
+```
+
+> 编辑器加载失败（CDN 不通、自托管漏文件）时会**降级成 textarea** 并给出提示，
+> 不会让整个表单白屏。
 
 ### Show（详情页）
 
@@ -717,6 +772,7 @@ AuditLog::record('update', [
 | `assets.auto_publish` | `true` | 每次启动把前端资源同步到 `public/` |
 | `assets.public_path` | `BASE_PATH/public` | 静态资源根目录（**绝对路径**） |
 | `assets.gzip` | `true` | 有预生成 `.gz` 时优先发压缩版（Swoole 本来也会实时压） |
+| `rich_text.external_images` | `true` | 允许正文里出现外链图片（会把 `https:` 加进 CSP 的 `img-src`） |
 | `security.csp.enabled` | `true` | 关掉就不发 CSP（只留 X-Frame-Options 等） |
 | `home_page` | `App\Admin\Dashboard` | 首页实现类，不存在则用包内默认 |
 
@@ -765,15 +821,16 @@ rm -rf runtime/container && php bin/hyperf.php start
 前三个不需要 Swoole、不需要数据库：
 
 ```bash
-HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/PayloadTest.php   # 42 项：payload 契约 / 校验规则
-HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/WiringTest.php    # 19 项：注解路由 / 配置装配 / 中间件
-node tests/frontend/run.mjs                                                # 60 项：前端纯逻辑
+HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/SanitizerTest.php  # 24 项：富文本清洗器（XSS 用例）
+HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/PayloadTest.php    # 45 项：payload 契约 / 校验规则
+HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/WiringTest.php     # 20 项：注解路由 / 配置装配 / 中间件
+node tests/frontend/run.mjs                                                  # 60 项：前端纯逻辑
 ```
 
 第四个是 SSR 渲染测试（真实 Vue + Naive UI 把每个页面渲染成 HTML，fixtures 是真实服务端响应）：
 
 ```bash
-cd tests/ssr && pnpm install && pnpm test    # 18 个页面，0 告警
+cd tests/ssr && pnpm install && pnpm test    # 19 个页面，0 告警
 ```
 
 第五个是**端到端交互测试**（真实 HTTP + 真实数据库，45 条），需要先装好并跑起面板：
@@ -816,6 +873,14 @@ BASE=http://127.0.0.1:9502 node run.mjs              # 换实例
 
 **导出的 CSV 在 Excel 里乱码？**
 导出带 UTF-8 BOM，Excel 双击能正常打开；如果用了第三方工具另存，注意别丢 BOM。
+
+**富文本里的外链图片不显示？**
+CSP 的 `img-src` 只放行了同源 + `https:`。把 `rich_text.external_images` 设为 `false`
+之后，就只有「上传后插入」的图片能显示；`http://` 的图片在 https 页面里本来也会被浏览器拦掉。
+
+**富文本编辑器没出来、只有一个文本框？**
+说明 `import('quill')` 失败了（CDN 不通，或自托管漏了文件）。页面上会显示具体原因；
+内网环境跑一次 `admin:install --reset-vendor --self-host` 即可。
 
 **上传的图片 404？**
 图片地址是相对路径，渲染时补前缀；若你把 `/static` 交给 nginx，记得
