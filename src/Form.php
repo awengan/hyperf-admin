@@ -21,6 +21,7 @@ use Awengan\HyperfAdmin\UI\Form\DateTime;
 use Awengan\HyperfAdmin\UI\Form\Number;
 use Awengan\HyperfAdmin\UI\Form\Password;
 use Awengan\HyperfAdmin\UI\Form\Radio;
+use Awengan\HyperfAdmin\UI\Form\RichText;
 use Awengan\HyperfAdmin\UI\Form\Select;
 use Awengan\HyperfAdmin\UI\Form\Slider;
 use Awengan\HyperfAdmin\UI\Form\Switches;
@@ -153,6 +154,8 @@ class Form extends AdminJsonBuilder
         'keyvalue' => KeyValue::class,
         'key-value' => KeyValue::class,
         'tree' => TreeSelect::class,
+        'richtext' => RichText::class,
+        'rich-text' => RichText::class,
         'treeselect' => TreeSelect::class,
         'tree-select' => TreeSelect::class,
     ];
@@ -269,7 +272,12 @@ class Form extends AdminJsonBuilder
         $payload = Utils::getRequest()->all();
 
         foreach ($this->fields as $field) {
-            $this->model->{$field->name} = $payload[$field->name] ?? null;
+            $value = $payload[$field->name] ?? null;
+
+            // 富文本等字段在这里做服务端加工（清洗），其它字段恒等
+            $this->model->{$field->name} = method_exists($field, 'prepareValue')
+                ? $field->prepareValue($value)
+                : $value;
         }
 
         $this->model->save();
@@ -473,7 +481,11 @@ class Form extends AdminJsonBuilder
         $payload = Utils::getRequest()->all();
 
         foreach ($this->fields as $field) {
-            $this->model->{$field->name} = $payload[$field->name] ?? null;
+            $value = $payload[$field->name] ?? null;
+
+            $this->model->{$field->name} = method_exists($field, 'prepareValue')
+                ? $field->prepareValue($value)
+                : $value;
         }
 
         $this->model->save();
