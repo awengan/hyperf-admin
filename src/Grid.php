@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Awengan\HyperfAdmin;
 
+use Awengan\HyperfAdmin\Helper\HtmlSanitizer;
 use Awengan\HyperfAdmin\Helper\Utils;
 use Awengan\HyperfAdmin\Traits\AdminJsonBuilder;
 use Awengan\HyperfAdmin\UI\Grid\Column;
@@ -567,6 +568,10 @@ class Grid extends AdminJsonBuilder
             $rows = $this->nest($rows, $this->treeParentField);
         }
 
+        // 富文本列：服务端清洗（limit>0 时去标签截断成纯文本），
+        // 前端拿到的永远是「可以直接渲染」的内容
+        $rows = $this->sanitizeHtmlColumns($rows);
+
         $lastPage = max(1, (int) ceil($total / $this->pageSize));
 
         $this->data = [
@@ -612,14 +617,64 @@ class Grid extends AdminJsonBuilder
     }
 
     /**
+     * 富文本列（`->html()`）：清洗后下发；带 limit 的转成纯文本摘要。
+     *
+     * 前端因此可以放心 `v-html`（内容已经在服务端过了一遍白名单），
+     * 带 limit 的连 `v-html` 都不用。
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function sanitizeHtmlColumns(array $rows): array
+    {
+        $columns = [];
+
+        foreach ($this->columns as $column) {
+            if ($column instanceof Column && $column->displayer === 'html') {
+                $columns[] = $column;
+            }
+        }
+
+        if ($columns === []) {
+            return $rows;
+        }
+
+        $sanitizer = HtmlSanitizer::make();
+
+        $walk = static function (array $items) use (&$walk, $columns, $sanitizer): array {
+            foreach ($items as $index => $row) {
+                foreach ($columns as $column) {
+                    if (! array_key_exists($column->field, $row)) {
+                        continue;
+                    }
+
+                    $value = $row[$column->field];
+                    $limit = (int) ($column->displayerOptions['limit'] ?? 0);
+
+                    $items[$index][$column->field] = $limit > 0
+                        ? $sanitizer->text(is_string($value) ? $value : (string) $value, $limit)
+                        : $sanitizer->clean(is_string($value) ? $value : (string) $value);
+                }
+
+                if (isset($row['children']) && is_array($row['children']) && $row['children'] !== []) {
+                    $items[$index]['children'] = $walk($row['children']);
+                }
+            }
+
+            return $items;
+        };
+
+        return $walk($rows);
+    }
+
+    /**
      * 把平铺结果按父字段拼成 `children`（树形表格）。
      *
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
      */
     private function nest(array $rows, string $parentField): array
-    {
-        $byId = [];
+    {        $byId = [];
         $order = [];
 
         foreach ($rows as $index => $row) {
