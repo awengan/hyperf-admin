@@ -67,6 +67,16 @@ class Field
     }
 
     /**
+     * 富文本：把值当 HTML 渲染（**服务端已清洗**）。
+     *
+     * 传 `$limit` 时只显示去标签后的纯文本摘要（服务端截断），不传则完整渲染。
+     */
+    public function html(int $limit = 0): static
+    {
+        return $this->use('html', ['limit' => max(0, $limit)]);
+    }
+
+    /**
      * @param array<string, mixed> $options
      */
     public function displayer(string $name, array $options = []): static
