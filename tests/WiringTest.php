@@ -230,8 +230,40 @@ test('包内默认配置齐全', function () {
         str_contains($config['cdn']['imports']['naive-ui'], 'external=vue'),
         'naive-ui 必须带 external=vue，否则会加载第二份 Vue'
     );
+    // 富文本字段的编辑器：必须能走 CDN，也必须能被 --self-host 下载
+    assertTrue(isset($config['cdn']['imports']['quill']), 'CDN 缺少 quill（富文本字段）');
+    assertTrue(
+        str_contains($config['cdn']['imports']['quill'], 'quill@2'),
+        'quill 版本号缺失：' . $config['cdn']['imports']['quill']
+    );
+    assertTrue(isset($config['rich_text']['external_images']), '缺少 rich_text.external_images');
+    assertSame(true, $config['rich_text']['external_images'], '默认允许外链图片');
     assertSame(true, $config['auth']['enabled'], '鉴权默认必须开启');
     assertSame([1], $config['auth']['super_admin_ids'], '默认超级管理员应为 id=1');
+});
+
+test('富文本字段与清洗器接线齐全', function () {
+    $field = new \Awengan\HyperfAdmin\UI\Form\RichText('content', '正文');
+    $payload = $field->height(280)->toolbar(['bold', 'bogus', 'link'])->maxLength(1000)->getData();
+
+    assertSame('richText', $payload['type'], '字段 type');
+    assertSame(280, $payload['height'], 'height 生效');
+    assertSame(['bold', 'link'], $payload['toolbar'], '未知按钮应被过滤');
+    assertSame(1000, $payload['max_length'], 'max_length 下发');
+    assertSame('请输入正文', $payload['placeholder'], '默认 placeholder');
+    assertTrue(str_contains($field->getRules(), 'max:1000'), 'maxLength 应同时加校验规则');
+
+    // 保存前清洗（白名单）
+    $clean = $field->prepareValue('<p onclick="x()">a</p><script>alert(1)</script>');
+    assertSame('<p>a</p>', $clean, 'prepareValue 应清洗');
+
+    // 空值归一
+    assertSame('', $field->prepareValue(null));
+
+    // Grid / Show 的 html 展示器（构造需要容器，这里只断言方法存在，
+    // 行为在 PayloadTest 里验）
+    assertTrue(method_exists(\Awengan\HyperfAdmin\UI\Grid\Column::class, 'html'), 'Column::html() 缺失');
+    assertTrue(method_exists(\Awengan\HyperfAdmin\UI\Show\Field::class, 'html'), 'Show Field::html() 缺失');
 });
 
 test('RBAC 相关的模型与权限判断入口存在', function () {
