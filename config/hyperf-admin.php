@@ -50,6 +50,9 @@ return [
         'imports' => [
             'vue' => env('ADMIN_CDN_VUE', 'https://unpkg.com/vue@3.5.13/dist/vue.esm-browser.prod.js'),
             'naive-ui' => env('ADMIN_CDN_NAIVE_UI', 'https://esm.sh/naive-ui@2.45.3?external=vue'),
+            // 富文本字段（`$form->richText()`）的编辑器。只有真的渲染富文本字段时才会被
+            // 动态 import —— 其它页面不会多下载一个字节。自托管时是 2 个文件 / 200 KB。
+            'quill' => env('ADMIN_CDN_QUILL', 'https://esm.sh/quill@2.0.3?bundle'),
         ],
     ],
 
@@ -191,6 +194,19 @@ return [
          * 前面有 nginx / CDN 负责压缩时可以关掉。
          */
         'gzip' => (bool) env('ADMIN_ASSETS_GZIP', true),
+    ],
+
+    /* -------------------------------------------------------------- 富文本 */
+
+    'rich_text' => [
+        /**
+         * 是否允许富文本里出现**外链图片**（`https://...`）。
+         *
+         * 因为内容用 `v-html` 渲染，浏览器端受 CSP 的 `img-src` 约束：
+         * 允许外链时会自动把 `https:` 加进 `img-src`（见 SecurityHeadersMiddleware）。
+         * 内网环境只想用「上传后插入」的话，设为 false —— 此时只放行同源/data/blob。
+         */
+        'external_images' => (bool) env('ADMIN_RICH_TEXT_EXTERNAL_IMAGES', true),
     ],
 
     /* ------------------------------------------------------------------ 数据 */
