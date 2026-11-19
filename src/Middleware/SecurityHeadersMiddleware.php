@@ -104,6 +104,12 @@ class SecurityHeadersMiddleware implements MiddlewareInterface
         $style = "'self' 'unsafe-inline'";
         $font = "'self' data:";
         $connect = "'self'";
+        $img = "'self' data: blob:";
+
+        // 富文本允许外链图片时，img-src 放宽到 https:（http 图片在 https 页面本来就被混内容拦掉）
+        if ($this->richTextExternalImages()) {
+            $img .= ' https:';
+        }
 
         if ($origins !== []) {
             $list = implode(' ', $origins);
@@ -117,7 +123,7 @@ class SecurityHeadersMiddleware implements MiddlewareInterface
             "default-src 'self'",
             "script-src {$script}",
             "style-src {$style}",
-            "img-src 'self' data: blob:",
+            "img-src {$img}",
             "font-src {$font}",
             "connect-src {$connect}",
             "frame-ancestors 'none'",
@@ -125,6 +131,15 @@ class SecurityHeadersMiddleware implements MiddlewareInterface
             "form-action 'self'",
             "object-src 'none'",
         ]);
+    }
+
+    private function richTextExternalImages(): bool
+    {
+        try {
+            return (bool) \Awengan\HyperfAdmin\Helper\Auth::config('rich_text.external_images', true);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
