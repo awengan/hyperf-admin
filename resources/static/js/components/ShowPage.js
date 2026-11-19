@@ -76,6 +76,21 @@ export default defineComponent({
         case 'date':
           return formatDate(value, options.format || 'YYYY-MM-DD HH:mm:ss')
 
+        case 'html': {
+          const html = formatValue(value)
+
+          if (html === '') {
+            return ''
+          }
+
+          if (Number(options.limit) > 0) {
+            return h('span', html)
+          }
+
+          // 服务端已清洗（Helper\HtmlSanitizer），这里可以放心 v-html
+          return h('div', { class: 'ea-show-html', innerHTML: html })
+        }
+
         case 'progressBar':
           return h(NProgress, { type: 'line', percentage: Math.max(0, Math.min(100, Number(value) || 0)), height: 8 })
 
