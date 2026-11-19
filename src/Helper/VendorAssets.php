@@ -178,7 +178,10 @@ final class VendorAssets
         }
 
         // 入口映射：`vue` => `/static/vendor/vue-xxxx.mjs`
-        $map = [];
+        //
+        // 和已有的 map **合并**：增量自托管（比如新加一个依赖后再跑一次 --self-host）
+        // 不能把之前下好的条目冲掉，否则 import map 会突然少一项 → 白屏。
+        $map = self::localImportMap();
 
         foreach ($entryUrls as $name => $url) {
             if (isset($this->downloaded[$url])) {
