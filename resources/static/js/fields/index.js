@@ -15,6 +15,7 @@ import DatePicker from './date.js'
 import Number from './number.js'
 import Password from './password.js'
 import Radio from './radio.js'
+import RichText from './richText.js'
 import Select from './select.js'
 import Slider from './slider.js'
 import Switch from './switch.js'
@@ -47,6 +48,8 @@ export const FIELD_COMPONENTS = {
   transfer: Transfer,
   upload: Upload,
   treeSelect: TreeSelect,
+  richText: RichText,
+  'rich-text': RichText,
 }
 
 export function resolveField(type) {
