@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.1.0 — 2026-11-20
+
+新增**富文本字段**（Quill 2），CDN 与自托管两种资源模式都开箱可用。
+
+### 新增
+
+- `$form->richText('content', '正文')`：14 个工具栏按钮、`height()` / `placeholder()` /
+  `maxLength()` / `upload()`，支持只读
+- 服务端清洗器 `Helper\HtmlSanitizer`：标签/属性/协议白名单，剥掉 `script`、`iframe`、
+  `on*`、`style`、`javascript:`；并把 Quill 方言归一化成标准 HTML
+  （`<li data-list="bullet">` → `<ul><li>`，`ql-code-block` → `<pre><code>`）
+- `Grid\Column::html($limit)` 与 `Show\Field::html($limit)`：展示富文本，
+  全量渲染时服务端已清洗，带 `limit` 时下发纯文本摘要
+- 配置项 `rich_text.external_images`（默认 `true`）：允许正文里的外链图片，
+  自动把 `https:` 加进 CSP 的 `img-src`
+- 编辑器**懒加载**：只有渲染富文本字段的页面才下载 Quill（CDN 1 个请求 / 自托管 2 个文件）
+- 加载失败自动降级成 textarea 并提示原因，不让表单白屏
+
+### 修复
+
+- `VendorAssets` 增量自托管会覆盖 `import-map.json`：新加一个依赖后再跑
+  `--self-host` 会把之前的条目冲掉（现在改为合并）
+
+### 文档
+
+- README 新增「富文本（RichText）」一节：字段 API、清洗白名单、两种资源模式的代价、
+  CSP 与图片的关系
+- 新增 `docs/rich-text.md`：选型评估（Quill vs Tiptap vs Sky Tiptap）与两种资源模式实测数据
+
 ## 0.0.4 — 2026-11-01
 
 只改文档，没有代码变更。
