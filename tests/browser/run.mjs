@@ -23,6 +23,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const BASE = (process.env.BASE || 'http://127.0.0.1:9501').replace(/\/+$/, '')
+const ADMIN_USER = process.env.ADMIN_USER || 'admin'
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123'
+/** 改密用例的中间密码；用完必须改回去，否则下次跑就登不上了 */
+const TEMP_PASS = 'browser-pass-1'
 const here = dirname(fileURLToPath(import.meta.url))
 const OUT = process.env.SHOT_DIR || join(here, 'shots')
 
@@ -109,8 +113,8 @@ async function toastText() {
 
 async function login() {
   await page.goto(BASE + '/admin/login.html', { waitUntil: 'networkidle' })
-  await page.locator('input').first().fill(process.env.ADMIN_USER || 'admin')
-  await page.locator('input[type="password"]').first().fill(process.env.ADMIN_PASS || 'admin123')
+  await page.locator('input').first().fill(ADMIN_USER)
+  await page.locator('input[type="password"]').first().fill(ADMIN_PASS)
   await page.getByRole('button', { name: /登录/ }).first().click()
   await page.waitForURL((u) => !u.pathname.includes('login'), { timeout: 20000 })
   await page.waitForTimeout(1200)
@@ -403,7 +407,110 @@ await check('在 /admin/user 刷新后仍停在用户管理', async () => {
   must(body.includes('用户管理') && body.includes('账号'), '刷新后内容不对')
 })
 
-console.log('\n[K] 控制台')
+console.log('\n[K] 修改密码（右上角头像）')
+
+/** 打开右上角用户名下拉里的某一项 */
+async function userMenu(label) {
+  await page.locator('.ea-header__user button').click()
+  await page.waitForTimeout(400)
+  await page.locator('.n-dropdown-option-body__label').filter({ hasText: label }).first().click()
+  await page.waitForTimeout(1600)
+}
+
+const passwordInputs = () => page.locator('.n-form input[type="password"]')
+
+async function fillPasswords(current, next, confirmation) {
+  await passwordInputs().nth(0).fill(current)
+  await passwordInputs().nth(1).fill(next)
+  await passwordInputs().nth(2).fill(confirmation)
+}
+
+async function submitProfile() {
+  await page.getByRole('button', { name: '提交' }).click()
+  await page.waitForTimeout(2400)
+}
+
+async function csrfCookie() {
+  return (await context.cookies()).find((cookie) => cookie.name === 'ea_csrf')?.value
+}
+
+/** 兜底：万一中途失败，用页面里的 fetch 把密码改回来，别把环境搞坏 */
+async function restorePassword() {
+  await page.evaluate(async ([temp, original]) => {
+    const token = (document.cookie.match(/ea_csrf=([a-f0-9]{32})/) || [])[1] || ''
+
+    await fetch('/admin/profile', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': token,
+      },
+      body: JSON.stringify({ current_password: temp, password: original, password_confirmation: original }),
+    })
+  }, [TEMP_PASS, ADMIN_PASS])
+}
+
+await check('点头像 →「修改密码」会打开改密表单（回归：曾经点了没任何反应）', async () => {
+  await page.goto(BASE + '/admin/home', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+
+  await userMenu('修改密码')
+
+  must(page.url().endsWith('/admin/profile'), '地址栏是 ' + page.url())
+  await eq('修改密码', (await page.locator('.ea-header__title').innerText()).trim(), '页面标题')
+  await eq(3, await passwordInputs().count(), '密码框数量')
+
+  const labels = await page.$$eval('.n-form-item-label', (els) => els.map((el) => el.textContent.trim()))
+  must(labels.some((label) => label.includes('当前密码')), '表单里没有「当前密码」：' + JSON.stringify(labels))
+  must(labels.some((label) => label.includes('确认新密码')), '表单里没有「确认新密码」：' + JSON.stringify(labels))
+  await page.screenshot({ path: OUT + '/15-profile.png', fullPage: true })
+})
+
+await check('当前密码填错 → 提示「当前密码不正确」且不跳走', async () => {
+  await fillPasswords('definitely-wrong', TEMP_PASS, TEMP_PASS)
+  await submitProfile()
+
+  const toast = await toastText()
+  must(toast.includes('当前密码不正确'), '提示是「' + toast + '」')
+  must(page.url().endsWith('/admin/profile'), '不该跳走：' + page.url())
+})
+
+await check('改密成功 → 回首页、令牌已轮换（紧接着再改一次仍然能写）', async () => {
+  const before = await csrfCookie()
+  let changedToTemp = false
+
+  try {
+    await fillPasswords(ADMIN_PASS, TEMP_PASS, TEMP_PASS)
+    await submitProfile()
+
+    must(page.url().endsWith('/admin/home'), '改密后地址是 ' + page.url())
+    await eq('密码已修改', await toastText(), '改密提示')
+    changedToTemp = true
+
+    const after = await csrfCookie()
+    must(after && after !== before, 'ea_csrf 没有轮换：' + before + ' -> ' + after)
+
+    // 令牌轮换后紧接着一个写请求：客户端若还拿 boot payload 里的旧 token 会 419
+    await userMenu('修改密码')
+    await fillPasswords(TEMP_PASS, ADMIN_PASS, ADMIN_PASS)
+    await submitProfile()
+
+    await eq('密码已修改', await toastText(), '改回原密码的提示')
+    must(page.url().endsWith('/admin/home'), '改回后地址是 ' + page.url())
+    changedToTemp = false
+    await page.screenshot({ path: OUT + '/16-after-change.png', fullPage: true })
+  } finally {
+    // 第二个写请求失败时密码会停在 TEMP_PASS，这里补一刀（失败也无所谓）
+    if (changedToTemp) {
+      await restorePassword().catch(() => {})
+    }
+  }
+})
+
+console.log('\n[L] 控制台')
 await check('全程没有 JS 报错（忽略我们故意触发的 422 校验）', async () => {
   const unexpected = consoleErrors.filter((e) => !/422/.test(e))
   // 404/500 单独列出来，方便看出是哪个资源

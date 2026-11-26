@@ -231,7 +231,7 @@ font-src / connect-src 同理
 
 ```bash
 cd tests/browser && pnpm install && node run.mjs
-# 25 条用例；BASE 换实例，SHOT_DIR 换截图目录
+# 28 条用例；BASE 换实例，SHOT_DIR 换截图目录
 ```
 
 覆盖：侧边栏导航与地址栏 / 合并表头的组头与子列（含单元格非空）/ 树形展开折叠 /

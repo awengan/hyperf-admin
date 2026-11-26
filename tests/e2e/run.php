@@ -686,6 +686,10 @@ check('改密成功 → 会话保持可用（Cookie 重签）', function (): voi
     ]);
     same(200, $r['status'], '状态码');
 
+    // 跳转目标必须是**有 JSON 页负载**的端点：`/admin` 是 HTML 外壳，
+    // SPA 里 fetch 它会解析失败（表现为「改完密码报 Invalid JSON response」）。
+    same('/home', $r['json']['then']['redirect'] ?? '', '跳转目标');
+
     // 改完密码旧 Cookie 指纹失效，但响应里重签了 Cookie → 仍可访问
     $me = json('GET', '/admin/me');
     same(200, $me['status'], '改密后仍可访问');

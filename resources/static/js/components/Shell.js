@@ -118,6 +118,16 @@ export default defineComponent({
       { label: '退出登录', key: 'logout' },
     ]
 
+    /**
+     * 根路径的替代端点。
+     *
+     * `/`（也就是 `/admin`）返回的是**带首屏数据的 HTML 外壳**，不是 JSON 信封。
+     * SPA 内部跳转走 `fetch`，拿到 HTML 解析不了 —— 所以根路径一律换成首页端点
+     * （`GET /home`，内容与入口一致）。没有这层映射时，「改密成功跳回入口」
+     * 「后退到入口」都会报 `Invalid JSON response`。
+     */
+    const homePath = '/home'
+
     function redirectToLogin() {
       window.location.href = props.boot.loginPath
     }
@@ -130,7 +140,8 @@ export default defineComponent({
         ? String(path).slice(adminPrefix.length)
         : path
       const target = navKey(relative)
-      const displayPath = adminPrefix !== '' && String(target).startsWith('/') ? adminPrefix + target : target
+      const resolved = target === '/' || target === adminPrefix ? homePath : target
+      const displayPath = adminPrefix !== '' && String(resolved).startsWith('/') ? adminPrefix + resolved : resolved
 
       if (target === '' || target === '#') {
         return
@@ -139,10 +150,10 @@ export default defineComponent({
       loading.value = true
 
       try {
-        const payload = await props.http.page(target)
+        const payload = await props.http.page(resolved)
 
         page.value = payload
-        activeKey.value = target
+        activeKey.value = resolved
         pageKey.value += 1
 
         if (options.push !== false) {
@@ -185,6 +196,13 @@ export default defineComponent({
     }
 
     function onUserSelect(key) {
+      // 「修改密码」走的是普通页面跳转：`GET /profile` 返回一个 `form` 页负载，
+      // 由 FormPage 渲染（这里别再额外弹窗，服务端才是唯一来源）。
+      if (key === 'profile') {
+        navigate('/profile')
+        return
+      }
+
       if (key === 'logout') {
         logout()
       }

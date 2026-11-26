@@ -335,6 +335,7 @@ location ^~ /static/ {
 | 路径 | 说明 |
 | --- | --- |
 | `/admin` | 概览首页（KPI 卡片 + 技术栈/特点 + 最近操作） |
+| `/admin/home` | 同上，但只返回 JSON 页负载（SPA 内部跳转用；`/admin` 是 HTML 外壳） |
 | `/admin/user` | **用户管理**：账号增删改、重置密码、分配角色 |
 | `/admin/role` | **角色管理**：增删改 + 权限分配 + 用户绑定 |
 | `/admin/permission` | **权限管理**：权限字典 |
@@ -824,7 +825,7 @@ rm -rf runtime/container && php bin/hyperf.php start
 HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/SanitizerTest.php  # 24 项：富文本清洗器（XSS 用例）
 HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/PayloadTest.php    # 45 项：payload 契约 / 校验规则
 HYPERF_VENDOR=/path/to/host/vendor/autoload.php php tests/WiringTest.php     # 20 项：注解路由 / 配置装配 / 中间件
-node tests/frontend/run.mjs                                                  # 60 项：前端纯逻辑
+node tests/frontend/run.mjs                                                  # 61 项：前端纯逻辑
 ```
 
 第四个是 SSR 渲染测试（真实 Vue + Naive UI 把每个页面渲染成 HTML，fixtures 是真实服务端响应）：
@@ -833,13 +834,13 @@ node tests/frontend/run.mjs                                                  # 6
 cd tests/ssr && pnpm install && pnpm test    # 19 个页面，0 告警
 ```
 
-第五个是**端到端交互测试**（真实 HTTP + 真实数据库，45 条），需要先装好并跑起面板：
+第五个是**端到端交互测试**（真实 HTTP + 真实数据库，47 条），需要先装好并跑起面板：
 
 ```bash
 E2E_BASE=http://127.0.0.1:9501 E2E_DB=hyperf_admin php tests/e2e/run.php
 ```
 
-第六个是**真实浏览器验证**（Playwright 驱动本机 Chrome/Edge，不下载 Chromium，25 条）：
+第六个是**真实浏览器验证**（Playwright 驱动本机 Chrome/Edge，不下载 Chromium，28 条）：
 
 ```bash
 cd tests/browser && pnpm install && node run.mjs     # 默认打 9501
@@ -848,7 +849,7 @@ BASE=http://127.0.0.1:9502 node run.mjs              # 换实例
 
 > 这两个测试目录都依赖 `node_modules`，跑完记得删掉（`.gitignore` 已经排除，不会进包）。
 
-从 0 安装一遍的完整实测记录（新建 Hyperf 项目 + 新数据库 + 45 条交互用例 + 8 个
+从 0 安装一遍的完整实测记录（新建 Hyperf 项目 + 新数据库 + 47 条交互用例 + 8 个
 「HTTP 层看不见」的问题）在 [docs/install-from-zero.md](docs/install-from-zero.md)。
 
 ---

@@ -232,7 +232,9 @@ class AdminController extends AbstractAdminController
             'summary' => '修改自己的密码：' . $user->username,
         ]);
 
-        return ActionResponse::success('密码已修改')->redirect('/admin')->toArray();
+        // 跳回首页：SPA 内部跳转拿的是 JSON 页负载，所以给 /home 而不是 /admin
+        // （`/admin` 是 HTML 外壳，fetch 它会解析失败）
+        return ActionResponse::success('密码已修改')->redirect('/home')->toArray();
     }
 
     private function profileForm(): Form

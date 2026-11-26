@@ -205,6 +205,48 @@ try {
     }
   })
 
+  await test('createHttp 现读 ea_csrf cookie（改密码轮换后旧 token 不该把写请求打成 419）', async () => {
+    const sent = []
+    const respond = async (url, init) => {
+      sent.push(init)
+      return { status: 200, json: async () => ({ code: 200, data: {} }) }
+    }
+
+    const http = createHttp('/admin', respond, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    const previous = globalThis.document
+
+    try {
+      globalThis.document = { cookie: 'theme=dark; ea_csrf=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }
+      await http.post('/profile', {})
+
+      // cookie 里的值才是权威：boot payload 里那份是页面加载时的旧 token
+      assert.equal(sent[0].headers['X-CSRF-Token'], 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+
+      // 轮换之后（cookie 变了）同一个实例也要跟着变
+      globalThis.document = { cookie: 'ea_csrf=cccccccccccccccccccccccccccccccc' }
+      await http.post('/profile', {})
+
+      assert.equal(sent[1].headers['X-CSRF-Token'], 'cccccccccccccccccccccccccccccccc')
+    } finally {
+      if (previous === undefined) {
+        delete globalThis.document
+      } else {
+        globalThis.document = previous
+      }
+    }
+
+    // 没有 document（Node 环境 / 非浏览器）时退回启动时那份
+    const fallback = []
+    const nodeHttp = createHttp('/admin', async (url, init) => {
+      fallback.push(init)
+      return { status: 200, json: async () => ({ code: 200, data: {} }) }
+    }, 'dddddddddddddddddddddddddddddddd')
+
+    await nodeHttp.post('/profile', {})
+
+    assert.equal(fallback[0].headers['X-CSRF-Token'], 'dddddddddddddddddddddddddddddddd')
+  })
+
   /* -------------------------------------------------------------- format --- */
 
   await test('naiveDateType maps every Element UI picker type', () => {

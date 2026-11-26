@@ -92,9 +92,30 @@ export function unwrap(payload) {
 export function createHttp(apiBase, fetchImpl, csrfToken = '') {
   const doFetch = fetchImpl ?? globalThis.fetch
 
+  /**
+   * 当前的 CSRF token。
+   *
+   * 双提交 Cookie 的权威是 **cookie**，不是启动时抄进 boot payload 的那份：
+   * 登录 / 退出 / 改密码都会 `Csrf::rotate()`，之后 boot 里的值立刻过期，
+   * 继续用它发写请求会一路 419（表现就是「改完密码点什么都没反应」）。
+   * 因此每次请求现读 cookie；读不到（Node 单测环境没有 document）才退回启动值。
+   */
+  function currentToken() {
+    if (typeof document !== 'undefined' && typeof document.cookie === 'string') {
+      const match = /(?:^|;\s*)ea_csrf=([a-f0-9]{32})/.exec(document.cookie)
+
+      if (match) {
+        return match[1]
+      }
+    }
+
+    return csrfToken
+  }
+
   async function request(path, options = {}) {
     const { method = 'GET', body, query, headers } = options
     const url = endpoint(apiBase, path, query)
+    const token = currentToken()
 
     const response = await doFetch(url, {
       method,
@@ -103,7 +124,7 @@ export function createHttp(apiBase, fetchImpl, csrfToken = '') {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
         // CSRF 双提交：头的值必须与服务端的 ea_csrf cookie 一致
-        ...(csrfToken === '' ? {} : { 'X-CSRF-Token': csrfToken }),
+        ...(token === '' ? {} : { 'X-CSRF-Token': token }),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...headers,
       },
